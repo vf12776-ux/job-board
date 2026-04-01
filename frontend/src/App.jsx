@@ -38,13 +38,11 @@ function AppRoutes() {
 
 function App() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [showInstallButton, setShowInstallButton] = useState(false);
 
   useEffect(() => {
     const handler = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      setShowInstallButton(true);
     };
     window.addEventListener('beforeinstallprompt', handler);
     return () => window.removeEventListener('beforeinstallprompt', handler);
@@ -53,13 +51,11 @@ function App() {
   const handleInstall = () => {
     if (deferredPrompt) {
       deferredPrompt.prompt();
-      deferredPrompt.userChoice.then((choiceResult) => {
-        if (choiceResult.outcome === 'accepted') {
-          console.log('Установлено');
-        }
+      deferredPrompt.userChoice.then(() => {
         setDeferredPrompt(null);
-        setShowInstallButton(false);
       });
+    } else {
+      alert('Нажмите ⋮ (три точки) в браузере → "Установить приложение"');
     }
   };
 
@@ -72,25 +68,25 @@ function App() {
             <AppRoutes />
           </Layout>
         </AuthProvider>
-        {showInstallButton && (
-          <button
-            onClick={handleInstall}
-            style={{
-              position: 'fixed',
-              bottom: '20px',
-              right: '20px',
-              zIndex: 1000,
-              padding: '12px 20px',
-              background: '#007bff',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer'
-            }}
-          >
-            Установить приложение
-          </button>
-        )}
+        {/* Кнопка видна всегда */}
+        <button
+          onClick={handleInstall}
+          style={{
+            position: 'fixed',
+            bottom: '20px',
+            right: '20px',
+            zIndex: 1000,
+            padding: '12px 20px',
+            background: '#007bff',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+          }}
+        >
+          📲 Установить приложение
+        </button>
       </div>
     </BrowserRouter>
   );
