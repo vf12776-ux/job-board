@@ -6,10 +6,11 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import OrdersFeed from './pages/OrdersFeed';
 import CreateOrder from './pages/CreateOrder';
+import AdminPanel from './pages/AdminPanel';
+import Profile from './pages/Profile';
 import PushNotifier from './components/PushNotifier';
 import { useAuth } from './contexts/AuthContext';
 import { useState, useEffect } from 'react';
-import AdminPanel from './pages/AdminPanel';
 
 function PrivateRoute({ children, allowedRoles }) {
   const { user } = useAuth();
@@ -34,10 +35,14 @@ function AppRoutes() {
           <CreateOrder />
         </PrivateRoute>
       } />
-      {/* Админ-панель — отдельный маршрут */}
       <Route path="/admin" element={
         <PrivateRoute allowedRoles={['admin']}>
           <AdminPanel />
+        </PrivateRoute>
+      } />
+      <Route path="/profile" element={
+        <PrivateRoute>
+          <Profile />
         </PrivateRoute>
       } />
     </Routes>
@@ -49,7 +54,6 @@ function App() {
   const [showButton, setShowButton] = useState(false);
 
   useEffect(() => {
-    // Не показываем кнопку, если уже открыто как PWA
     if (window.matchMedia('(display-mode: standalone)').matches) {
       setShowButton(false);
       return;
@@ -62,7 +66,6 @@ function App() {
     };
     window.addEventListener('beforeinstallprompt', handler);
 
-    // Если установка произошла через меню браузера — скрываем кнопку
     const installedHandler = () => setShowButton(false);
     window.addEventListener('appinstalled', installedHandler);
 
@@ -82,7 +85,7 @@ function App() {
         setDeferredPrompt(null);
       });
     } else {
-      alert('Нажмите ⋮ (три точки) в браузере → "Установить приложение"');
+      alert('Нажмите ⋮ → Установить приложение');
     }
   };
 
@@ -104,14 +107,22 @@ function App() {
                 bottom: '20px',
                 right: '20px',
                 zIndex: 1000,
-                padding: '12px 20px',
-                background: '#007bff',
+                padding: '12px 24px',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 color: 'white',
                 border: 'none',
-                borderRadius: '8px',
+                borderRadius: '40px',
                 cursor: 'pointer',
-                boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'transform 0.2s'
               }}
+              onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+              onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
             >
               📲 Установить приложение
             </button>

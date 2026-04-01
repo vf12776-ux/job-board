@@ -24,8 +24,11 @@ export default function Layout({ children }) {
             )}
             {user ? (
               <div className="user-info">
-                <span className="user-role">{user.role === 'advertiser' ? 'Рекламодатель' : 'Соискатель'}</span>
+                <span className="user-role">
+                  {user.role === 'advertiser' ? 'Рекламодатель' : (user.role === 'admin' ? 'Админ' : 'Соискатель')}
+                </span>
                 <span>{user.name}</span>
+                <Link to="/profile">Профиль</Link>
                 <button onClick={handleLogout} className="logout-btn">Выйти</button>
               </div>
             ) : (

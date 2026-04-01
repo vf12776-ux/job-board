@@ -187,6 +187,23 @@ app.put('/api/admin/users/role', requireAuth, requireAdmin, (req, res) => {
     res.json({ success: true });
   });
 });
+// Смена пароля
+app.put('/api/user/change-password', requireAuth, async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+  if (!oldPassword || !newPassword) {
+    return res.status(400).json({ error: 'Старый и новый пароли обязательны' });
+  }
+  db.get('SELECT password FROM users WHERE id = ?', [req.user.id], async (err, row) => {
+    if (err || !row) return res.status(500).json({ error: 'Ошибка базы данных' });
+    const match = await bcrypt.compare(oldPassword, row.password);
+    if (!match) return res.status(401).json({ error: 'Неверный старый пароль' });
+    const hashed = await bcrypt.hash(newPassword, 10);
+    db.run('UPDATE users SET password = ? WHERE id = ?', [hashed, req.user.id], (err) => {
+      if (err) return res.status(500).json({ error: 'Ошибка обновления пароля' });
+      res.json({ success: true });
+    });
+  });
+});
 
 // --- Fallback для SPA (исправлено для Express 5) ---
 app.use((req, res) => {
