@@ -9,6 +9,7 @@ import CreateOrder from './pages/CreateOrder';
 import PushNotifier from './components/PushNotifier';
 import { useAuth } from './contexts/AuthContext';
 import { useState, useEffect } from 'react';
+import AdminPanel from './pages/AdminPanel';
 
 function PrivateRoute({ children, allowedRoles }) {
   const { user } = useAuth();
@@ -31,6 +32,12 @@ function AppRoutes() {
       <Route path="/create-order" element={
         <PrivateRoute allowedRoles={['advertiser']}>
           <CreateOrder />
+        </PrivateRoute>
+      } />
+      {/* Админ-панель — отдельный маршрут */}
+      <Route path="/admin" element={
+        <PrivateRoute allowedRoles={['admin']}>
+          <AdminPanel />
         </PrivateRoute>
       } />
     </Routes>

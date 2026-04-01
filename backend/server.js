@@ -2,56 +2,96 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
-const { initDb } = require('./config/database');
 const path = require('path');
+const dotenv = require('dotenv');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const { db, initDb } = require('./config/database'); // подключаем вашу БД
+
+dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST']
-  }
-});
+const io = new Server(server, { cors: { origin: '*' } });
 
-app.use(cors());
-app.use(express.json());
-
-// Проверка JWT_SECRET
-if (!process.env.JWT_SECRET) {
+const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
   console.error('FATAL: JWT_SECRET is not set');
   process.exit(1);
 }
 
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
 // Инициализация БД
-initDb().catch(console.error);
+initDb().then(() => {
+  console.log('База данных готова');
+}).catch(err => {
+  console.error('Ошибка инициализации БД:', err);
+  process.exit(1);
+});
 
-// Маршруты API
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/orders', require('./routes/orders'));
-app.use('/api/subscribe', require('./routes/subscribe'));
-app.use('/api/admin', require('./routes/admin'));
+// Middleware аутентификации
+const requireAuth = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ error: 'Нет токена' });
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    // Получаем пользователя из вашей БД
+    db.get('SELECT id, name, email, role FROM users WHERE id = ?', [decoded.id], (err, user) => {
+      if (err || !user) return res.status(401).json({ error: 'Пользователь не найден' });
+      req.user = user;
+      next();
+    });
+  } catch (err) {
+    res.status(401).json({ error: 'Неверный токен' });
+  }
+};
 
-// Раздача статики и SPA (исправленный блок)
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../frontend/dist')));
-  // Любой запрос, не обработанный API, отдаёт index.html (без path-to-regexp ошибок)
-  app.use((req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/dist', 'index.html'));
-  });
-}
+// Middleware проверки роли admin
+const requireAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Доступ запрещён' });
+  }
+  next();
+};
 
-// Socket.io
-io.on('connection', (socket) => {
-  console.log('Клиент подключился:', socket.id);
-  socket.on('disconnect', () => {
-    console.log('Клиент отключился:', socket.id);
+// --- Auth endpoints (используем ваши существующие) ---
+// Если у вас уже есть /api/register и /api/login, оставьте их как есть.
+// Если нет — добавьте.
+
+// --- Admin endpoints ---
+app.get('/api/admin/users', requireAuth, requireAdmin, (req, res) => {
+  db.all('SELECT id, name, email, role FROM users', [], (err, users) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(users);
   });
 });
 
-app.set('io', io);
+app.put('/api/admin/users/role', requireAuth, requireAdmin, (req, res) => {
+  const { userId, role } = req.body;
+  if (!userId || !role) return res.status(400).json({ error: 'userId и role обязательны' });
+  db.run('UPDATE users SET role = ? WHERE id = ?', [role, userId], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true });
+  });
+});
 
-const PORT = process.env.PORT || 5000;
+// --- Fallback для SPA ---
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// --- WebSocket ---
+io.on('connection', (socket) => {
+  console.log('Клиент подключился');
+});
+
+// --- Запуск сервера ---
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
