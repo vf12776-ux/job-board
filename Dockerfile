@@ -22,7 +22,7 @@ RUN npm ci --ignore-scripts && npm rebuild sqlite3 --build-from-source
 
 # Устанавливаем зависимости для frontend
 WORKDIR /app/frontend
-RUN npm ci --ignore-scripts
+RUN npm install --ignore-scripts --legacy-peer-deps
 
 # Копируем весь исходный код (кроме node_modules, они уже есть)
 WORKDIR /app
