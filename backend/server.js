@@ -21,14 +21,14 @@ if (!JWT_SECRET) {
   process.exit(1);
 }
 
-// --- Middleware ---
+// Middleware
 app.use(cors());
 app.use(express.json());
 
-// --- Health check ---
+// Health check
 app.get('/health', (req, res) => res.send('OK'));
 
-// --- Инициализация БД ---
+// Инициализация БД
 initDb().then(() => {
   console.log('База данных готова');
 }).catch(err => {
@@ -36,7 +36,7 @@ initDb().then(() => {
   process.exit(1);
 });
 
-// --- Middleware аутентификации ---
+// Middleware аутентификации
 const requireAuth = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) return res.status(401).json({ error: 'Нет токена' });
@@ -205,9 +205,13 @@ app.put('/api/user/change-password', requireAuth, (req, res) => {
 // --- Статика (после API) ---
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- Fallback для SPA (все GET-запросы, не обработанные выше) ---
-app.get('/*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// --- Fallback для SPA: отдаём index.html на все GET-запросы, кроме API и health ---
+app.use((req, res, next) => {
+  if (req.method === 'GET' && !req.path.startsWith('/api') && req.path !== '/health') {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  } else {
+    next();
+  }
 });
 
 // --- WebSocket ---
