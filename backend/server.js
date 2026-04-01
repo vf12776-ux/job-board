@@ -21,12 +21,14 @@ if (!JWT_SECRET) {
   process.exit(1);
 }
 
-// Middleware
+// --- Middleware (общие) ---
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
 
-// Инициализация БД
+// --- Health check (простейший эндпоинт для диагностики) ---
+app.get('/health', (req, res) => res.send('OK'));
+
+// --- Инициализация базы данных (асинхронно, но сервер уже запускается) ---
 initDb().then(() => {
   console.log('База данных готова');
 }).catch(err => {
@@ -34,7 +36,7 @@ initDb().then(() => {
   process.exit(1);
 });
 
-// Middleware аутентификации
+// --- Middleware аутентификации ---
 const requireAuth = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) return res.status(401).json({ error: 'Нет токена' });
@@ -51,7 +53,6 @@ const requireAuth = (req, res, next) => {
   }
 };
 
-// Middleware проверки роли admin
 const requireAdmin = (req, res, next) => {
   if (!req.user || req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Доступ запрещён' });
@@ -59,9 +60,7 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-// --- API маршруты ---
-
-// Регистрация
+// --- API маршруты (все до статики) ---
 app.post('/api/register', (req, res) => {
   const { name, email, password, city } = req.body;
   if (!name || !email || !password || !city) {
@@ -85,7 +84,6 @@ app.post('/api/register', (req, res) => {
   });
 });
 
-// Логин
 app.post('/api/login', (req, res) => {
   const { email, password } = req.body;
   db.get('SELECT * FROM users WHERE email = ?', [email], (err, user) => {
@@ -102,12 +100,10 @@ app.post('/api/login', (req, res) => {
   });
 });
 
-// Получить текущего пользователя
 app.get('/api/me', requireAuth, (req, res) => {
   res.json(req.user);
 });
 
-// Заявки
 app.get('/api/orders', (req, res) => {
   db.all(`
     SELECT o.*, u.name as advertiser_name
@@ -170,7 +166,6 @@ app.put('/api/orders/:id/status', requireAuth, (req, res) => {
   });
 });
 
-// Админ: список пользователей
 app.get('/api/admin/users', requireAuth, requireAdmin, (req, res) => {
   db.all('SELECT id, name, email, role FROM users', [], (err, users) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -178,7 +173,6 @@ app.get('/api/admin/users', requireAuth, requireAdmin, (req, res) => {
   });
 });
 
-// Админ: смена роли
 app.put('/api/admin/users/role', requireAuth, requireAdmin, (req, res) => {
   const { userId, role } = req.body;
   if (!userId || !role) return res.status(400).json({ error: 'userId и role обязательны' });
@@ -188,7 +182,6 @@ app.put('/api/admin/users/role', requireAuth, requireAdmin, (req, res) => {
   });
 });
 
-// Смена пароля
 app.put('/api/user/change-password', requireAuth, (req, res) => {
   const { oldPassword, newPassword } = req.body;
   if (!oldPassword || !newPassword) {
@@ -209,8 +202,11 @@ app.put('/api/user/change-password', requireAuth, (req, res) => {
   });
 });
 
-// --- SPA fallback (должен быть ПОСЛЕ всех API) ---
-app.use((req, res) => {
+// --- Статика (после API) ---
+app.use(express.static(path.join(__dirname, 'public')));
+
+// --- SPA fallback (для всех остальных GET-запросов) ---
+app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
@@ -219,7 +215,9 @@ io.on('connection', (socket) => {
   console.log('Клиент подключился');
 });
 
-// --- Запуск сервера ---
-server.listen(PORT, () => {
+// --- Запуск сервера (слушаем на всех интерфейсах) ---
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
+}).on('error', (err) => {
+  console.error('Server error:', err);
 });
