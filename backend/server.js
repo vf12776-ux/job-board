@@ -21,14 +21,14 @@ if (!JWT_SECRET) {
   process.exit(1);
 }
 
-// --- Middleware (общие) ---
+// --- Middleware ---
 app.use(cors());
 app.use(express.json());
 
-// --- Health check (простейший эндпоинт для диагностики) ---
+// --- Health check ---
 app.get('/health', (req, res) => res.send('OK'));
 
-// --- Инициализация базы данных (асинхронно, но сервер уже запускается) ---
+// --- Инициализация БД ---
 initDb().then(() => {
   console.log('База данных готова');
 }).catch(err => {
@@ -60,7 +60,7 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-// --- API маршруты (все до статики) ---
+// --- API маршруты ---
 app.post('/api/register', (req, res) => {
   const { name, email, password, city } = req.body;
   if (!name || !email || !password || !city) {
@@ -205,8 +205,8 @@ app.put('/api/user/change-password', requireAuth, (req, res) => {
 // --- Статика (после API) ---
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- SPA fallback (для всех остальных GET-запросов) ---
-app.get('*', (req, res) => {
+// --- Fallback для SPA (все GET-запросы, не обработанные выше) ---
+app.get('/*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
@@ -215,9 +215,7 @@ io.on('connection', (socket) => {
   console.log('Клиент подключился');
 });
 
-// --- Запуск сервера (слушаем на всех интерфейсах) ---
+// --- Запуск сервера ---
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
-}).on('error', (err) => {
-  console.error('Server error:', err);
 });
