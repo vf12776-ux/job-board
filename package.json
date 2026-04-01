@@ -3,11 +3,9 @@
   "version": "1.0.0",
   "scripts": {
     "postinstall": "cd backend && npm install && cd ../frontend && npm install",
-    "build": "cd frontend && npm run build",
+    "build": "cd frontend && npm run build && mkdir -p ../backend/public && cp -r dist/* ../backend/public/",
     "start": "cd backend && npm start"
   },
-  "devDependencies": {
-    "concurrently": "^7.6.0",
-    "vite-plugin-pwa": "^1.2.0"
-  }
+  "dependencies": {},
+  "devDependencies": {}
 }
