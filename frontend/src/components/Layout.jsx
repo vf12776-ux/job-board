@@ -32,18 +32,20 @@ export default function Layout({ children }) {
               <Link to="/login">Вход</Link>
             )}
           </div>
-          <button 
+          <button
             onClick={toggleTheme}
             style={{
               background: 'none',
-              border: 'none',
-              fontSize: '24px',
+              border: '1px solid var(--border)',
+              borderRadius: '20px',
+              padding: '6px 12px',
+              fontSize: '14px',
               cursor: 'pointer',
               marginLeft: '15px',
-              padding: '5px 10px'
+              color: 'var(--text)'
             }}
           >
-            {theme === 'light' ? '🌙' : '☀️'}
+            {theme === 'light' ? '🌞 Светлая' : '🌙 Тёмная'}
           </button>
         </div>
       </nav>
