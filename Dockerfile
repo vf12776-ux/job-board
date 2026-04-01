@@ -8,19 +8,29 @@ RUN apt-get update && apt-get install -y \
     python3 \
     && rm -rf /var/lib/apt/lists/*
 
-# Копируем package.json и lock-файл
+# Копируем package.json и lock-файлы (включая backend и frontend)
 COPY package*.json ./
+COPY backend/package*.json ./backend/
+COPY frontend/package*.json ./frontend/
 
-# Устанавливаем все зависимости (включая dev, т.к. нужны для сборки фронта)
-RUN npm ci
+# Устанавливаем корневые зависимости, но не запускаем postinstall
+RUN npm ci --ignore-scripts
 
-# Принудительно пересобираем sqlite3 под glibc контейнера
-RUN npm rebuild sqlite3 --build-from-source
+# Устанавливаем зависимости для backend с пересборкой sqlite3
+WORKDIR /app/backend
+RUN npm ci --ignore-scripts && npm rebuild sqlite3 --build-from-source
 
-# Копируем весь исходный код
-COPY . .
+# Устанавливаем зависимости для frontend
+WORKDIR /app/frontend
+RUN npm ci --ignore-scripts
 
-# Собираем фронтенд (если скрипт называется "build")
+# Копируем весь исходный код (кроме node_modules, они уже есть)
+WORKDIR /app
+COPY backend ./backend
+COPY frontend ./frontend
+
+# Собираем фронтенд
+WORKDIR /app/frontend
 RUN npm run build
 
 # --- Второй этап: production ---
@@ -28,11 +38,14 @@ FROM node:20-bullseye-slim
 
 WORKDIR /app
 
-# Копируем только production зависимости и собранные файлы
+# Копируем бэкенд с уже установленными модулями
+COPY --from=builder /app/backend /app/backend
+
+# Копируем собранный фронтенд
+COPY --from=builder /app/frontend/dist /app/frontend/dist
+
+# Опционально: копируем корневой package.json (на всякий случай)
 COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/backend ./backend
-COPY --from=builder /app/frontend/dist ./frontend/dist
 
 ENV NODE_ENV=production
 
