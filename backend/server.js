@@ -35,7 +35,7 @@ initDb().then(() => {
 });
 
 // Middleware аутентификации
-const requireAuth = async (req, res, next) => {
+const requireAuth = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) return res.status(401).json({ error: 'Нет токена' });
   const token = authHeader.split(' ')[1];
@@ -59,55 +59,55 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-// --- Auth endpoints (если они уже есть в вашем проекте, оставьте как есть) ---
-// Примеры:
-app.post('/api/register', async (req, res) => {
+// --- API маршруты ---
+
+// Регистрация
+app.post('/api/register', (req, res) => {
   const { name, email, password, city } = req.body;
   if (!name || !email || !password || !city) {
     return res.status(400).json({ error: 'Все поля обязательны' });
   }
-  try {
-    const hashed = await bcrypt.hash(password, 10);
+  bcrypt.hash(password, 10, (err, hashed) => {
+    if (err) return res.status(500).json({ error: err.message });
     db.run(
       'INSERT INTO users (name, email, password, city, role) VALUES (?, ?, ?, ?, ?)',
       [name, email, hashed, city, 'candidate'],
       function(err) {
         if (err) {
           if (err.code === 'SQLITE_CONSTRAINT') {
-            res.status(400).json({ error: 'Email уже существует' });
-          } else {
-            res.status(500).json({ error: err.message });
+            return res.status(400).json({ error: 'Email уже существует' });
           }
-        } else {
-          res.json({ success: true });
+          return res.status(500).json({ error: err.message });
         }
+        res.json({ success: true });
       }
     );
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/login', (req, res) => {
-  const { email, password } = req.body;
-  db.get('SELECT * FROM users WHERE email = ?', [email], async (err, user) => {
-    if (err || !user) {
-      return res.status(401).json({ error: 'Неверные учётные данные' });
-    }
-    const match = await bcrypt.compare(password, user.password);
-    if (!match) {
-      return res.status(401).json({ error: 'Неверные учётные данные' });
-    }
-    const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, city: user.city } });
   });
 });
 
+// Логин
+app.post('/api/login', (req, res) => {
+  const { email, password } = req.body;
+  db.get('SELECT * FROM users WHERE email = ?', [email], (err, user) => {
+    if (err || !user) {
+      return res.status(401).json({ error: 'Неверные учётные данные' });
+    }
+    bcrypt.compare(password, user.password, (err, match) => {
+      if (err || !match) {
+        return res.status(401).json({ error: 'Неверные учётные данные' });
+      }
+      const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+      res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, city: user.city } });
+    });
+  });
+});
+
+// Получить текущего пользователя
 app.get('/api/me', requireAuth, (req, res) => {
   res.json(req.user);
 });
 
-// --- Orders endpoints ---
+// Заявки
 app.get('/api/orders', (req, res) => {
   db.all(`
     SELECT o.*, u.name as advertiser_name
@@ -144,7 +144,6 @@ app.put('/api/orders/:id/status', requireAuth, (req, res) => {
   const { status, candidate_id } = req.body;
   db.get('SELECT * FROM orders WHERE id = ?', [id], (err, order) => {
     if (err || !order) return res.status(404).json({ error: 'Заявка не найдена' });
-    // Разрешить менять статус только автору или администратору
     if (order.advertiser_id !== req.user.id && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Нет прав' });
     }
@@ -171,7 +170,7 @@ app.put('/api/orders/:id/status', requireAuth, (req, res) => {
   });
 });
 
-// --- Admin endpoints ---
+// Админ: список пользователей
 app.get('/api/admin/users', requireAuth, requireAdmin, (req, res) => {
   db.all('SELECT id, name, email, role FROM users', [], (err, users) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -179,6 +178,7 @@ app.get('/api/admin/users', requireAuth, requireAdmin, (req, res) => {
   });
 });
 
+// Админ: смена роли
 app.put('/api/admin/users/role', requireAuth, requireAdmin, (req, res) => {
   const { userId, role } = req.body;
   if (!userId || !role) return res.status(400).json({ error: 'userId и role обязательны' });
@@ -187,25 +187,29 @@ app.put('/api/admin/users/role', requireAuth, requireAdmin, (req, res) => {
     res.json({ success: true });
   });
 });
+
 // Смена пароля
-app.put('/api/user/change-password', requireAuth, async (req, res) => {
+app.put('/api/user/change-password', requireAuth, (req, res) => {
   const { oldPassword, newPassword } = req.body;
   if (!oldPassword || !newPassword) {
     return res.status(400).json({ error: 'Старый и новый пароли обязательны' });
   }
-  db.get('SELECT password FROM users WHERE id = ?', [req.user.id], async (err, row) => {
+  db.get('SELECT password FROM users WHERE id = ?', [req.user.id], (err, row) => {
     if (err || !row) return res.status(500).json({ error: 'Ошибка базы данных' });
-    const match = await bcrypt.compare(oldPassword, row.password);
-    if (!match) return res.status(401).json({ error: 'Неверный старый пароль' });
-    const hashed = await bcrypt.hash(newPassword, 10);
-    db.run('UPDATE users SET password = ? WHERE id = ?', [hashed, req.user.id], (err) => {
-      if (err) return res.status(500).json({ error: 'Ошибка обновления пароля' });
-      res.json({ success: true });
+    bcrypt.compare(oldPassword, row.password, (err, match) => {
+      if (err || !match) return res.status(401).json({ error: 'Неверный старый пароль' });
+      bcrypt.hash(newPassword, 10, (err, hashed) => {
+        if (err) return res.status(500).json({ error: err.message });
+        db.run('UPDATE users SET password = ? WHERE id = ?', [hashed, req.user.id], (err) => {
+          if (err) return res.status(500).json({ error: 'Ошибка обновления пароля' });
+          res.json({ success: true });
+        });
+      });
     });
   });
 });
 
-// --- Fallback для SPA (исправлено для Express 5) ---
+// --- SPA fallback (должен быть ПОСЛЕ всех API) ---
 app.use((req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
