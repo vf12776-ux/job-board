@@ -1,8 +1,10 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -30,6 +32,19 @@ export default function Layout({ children }) {
               <Link to="/login">Вход</Link>
             )}
           </div>
+          <button 
+            onClick={toggleTheme}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '24px',
+              cursor: 'pointer',
+              marginLeft: '15px',
+              padding: '5px 10px'
+            }}
+          >
+            {theme === 'light' ? '🌙' : '☀️'}
+          </button>
         </div>
       </nav>
       <main className="container">
