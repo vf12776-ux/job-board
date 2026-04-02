@@ -1,44 +1,42 @@
 FROM node:20-bullseye-slim AS builder
 
-# Устанавливаем Python и компиляторы для сборки sqlite3
+# Устанавливаем Python и компиляторы для sqlite3
 RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Копируем package.json'и для кеширования слоёв
+# Копируем package.json для кеширования слоёв
 COPY backend/package*.json ./backend/
 COPY frontend/package*.json ./frontend/
 COPY package*.json ./
 
-# Устанавливаем зависимости бэкенда (сборка sqlite3 пройдёт)
+# Устанавливаем зависимости бэкенда (sqlite3 соберётся)
 RUN cd backend && npm install
+
+# Копируем ВЕСЬ код бэкенда (включая server.js)
+COPY backend ./backend
 
 # Копируем исходники фронтенда
 COPY frontend ./frontend
 
-# Собираем фронтенд (PWA остаётся)
+# Собираем фронтенд
 WORKDIR /app/frontend
 RUN npm install --legacy-peer-deps
 RUN npm run build
 
-# Финальный образ (без компиляторов, только runtime)
+# Финальный образ (только runtime)
 FROM node:20-bullseye-slim
 
 WORKDIR /app
 
-# Копируем уже собранный бэкенд и его node_modules
+# Копируем всю папку бэкенда (код + node_modules)
 COPY --from=builder /app/backend ./backend
-COPY --from=builder /app/backend/node_modules ./backend/node_modules
 
-# Копируем собранную статику фронтенда
-COPY --from=builder /app/backend/public ./backend/public
-
-# Копируем package.json для порядка
-COPY backend/package*.json ./backend/
+# Собранный фронтенд уже внутри backend/public (скопируется выше)
 
 WORKDIR /app/backend
 
-# Устанавливаем production зависимости, но НЕ запускаем скрипты (sqlite3 уже собран)
+# Устанавливаем production зависимости, но не пересобираем sqlite3
 RUN npm install --omit=dev --ignore-scripts
 
 EXPOSE 10000
