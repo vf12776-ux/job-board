@@ -25,3 +25,4 @@ COPY --from=builder /app/backend/public ./backend/public
 
 EXPOSE 10000
 CMD ["node", "backend/server.js"]
+
