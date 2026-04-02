@@ -10,10 +10,13 @@ COPY backend/package*.json ./backend/
 COPY frontend/package*.json ./frontend/
 COPY package*.json ./
 
-# Устанавливаем зависимости бэкенда (теперь Python есть)
+# Устанавливаем зависимости бэкенда (Python уже есть)
 RUN cd backend && npm install
 
-# Устанавливаем зависимости фронтенда и собираем его
+# Копируем ВСЁ содержимое фронтенда (исходники, index.html, etc)
+COPY frontend ./frontend
+
+# Переходим в папку фронтенда, устанавливаем зависимости и собираем
 WORKDIR /app/frontend
 RUN npm install --legacy-peer-deps
 RUN npm run build
@@ -27,7 +30,7 @@ WORKDIR /app
 COPY --from=builder /app/backend ./backend
 COPY --from=builder /app/backend/node_modules ./backend/node_modules
 
-# Копируем собранный фронтенд
+# Копируем собранный фронтенд (статика)
 COPY --from=builder /app/backend/public ./backend/public
 
 # Копируем package.json бэкенда (на всякий случай)
@@ -35,7 +38,7 @@ COPY backend/package*.json ./backend/
 
 WORKDIR /app/backend
 
-# Устанавливаем production зависимости бэкенда (sqlite3 уже собран)
+# Устанавливаем production зависимости (sqlite3 уже собран)
 RUN npm install --omit=dev
 
 EXPOSE 10000
