@@ -2,10 +2,6 @@
   "name": "job-board",
   "version": "1.0.0",
   "scripts": {
-    "postinstall": "cd backend && npm install && cd ../frontend && npm install",
-    "build": "cd frontend && npm run build && mkdir -p ../backend/public && cp -r dist/* ../backend/public/",
-    "start": "cd backend && npm start"
-  },
-  "dependencies": {},
-  "devDependencies": {}
+    "build": "cd frontend && npm install && npm run build && cd ../backend && npm install"
+  }
 }
