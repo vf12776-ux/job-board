@@ -17,7 +17,6 @@ const dbPath = path.join(__dirname, 'database.sqlite');
 const db = new sqlite3.Database(dbPath);
 
 db.serialize(() => {
-  // Таблица пользователей
   db.run(`CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT UNIQUE,
@@ -25,7 +24,6 @@ db.serialize(() => {
     role TEXT DEFAULT 'user'
   )`);
 
-  // Таблица заявок
   db.run(`CREATE TABLE IF NOT EXISTS requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     userEmail TEXT,
@@ -35,7 +33,6 @@ db.serialize(() => {
     createdAt TEXT
   )`);
 
-  // Таблица сообщений
   db.run(`CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     requestId INTEGER,
@@ -44,7 +41,7 @@ db.serialize(() => {
     createdAt TEXT
   )`);
 
-  // Создание администратора, если не существует
+  // Создание администратора
   const adminEmail = 'admin@example.com';
   const adminPass = 'admin123';
   bcrypt.hash(adminPass, 10, (err, hash) => {
@@ -61,10 +58,7 @@ app.post('/api/login', (req, res) => {
     if (err || !user) return res.status(400).json({ error: 'Неверные данные' });
     bcrypt.compare(password, user.password, (err, result) => {
       if (err || !result) return res.status(400).json({ error: 'Неверные данные' });
-      const token = jwt.sign(
-        { id: user.id, email: user.email, role: user.role },
-        JWT_SECRET
-      );
+      const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET);
       res.json({ token, user: { email: user.email, role: user.role } });
     });
   });
@@ -76,10 +70,7 @@ app.post('/api/register', (req, res) => {
     if (err) return res.status(500).json({ error: 'Ошибка сервера' });
     db.run(`INSERT INTO users (email, password) VALUES (?, ?)`, [email, hash], function(err) {
       if (err) return res.status(400).json({ error: 'Email уже существует' });
-      const token = jwt.sign(
-        { id: this.lastID, email, role: 'user' },
-        JWT_SECRET
-      );
+      const token = jwt.sign({ id: this.lastID, email, role: 'user' }, JWT_SECRET);
       res.json({ token, user: { email, role: 'user' } });
     });
   });
@@ -151,14 +142,10 @@ app.get('/api/messages/:requestId', (req, res) => {
   if (!token) return res.status(401).json({ error: 'Нет токена' });
   jwt.verify(token, JWT_SECRET, (err, decoded) => {
     if (err) return res.status(401).json({ error: 'Неверный токен' });
-    db.all(
-      `SELECT * FROM messages WHERE requestId = ? ORDER BY id ASC`,
-      [req.params.requestId],
-      (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
-      }
-    );
+    db.all(`SELECT * FROM messages WHERE requestId = ? ORDER BY id ASC`, [req.params.requestId], (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(rows);
+    });
   });
 });
 
@@ -187,7 +174,6 @@ app.get('/health', (req, res) => res.send('OK'));
 // ===================== СТАТИКА (FRONTEND) =====================
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Все остальные маршруты отдаём index.html (для SPA)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
