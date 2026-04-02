@@ -25,6 +25,12 @@ if (!JWT_SECRET) {
 app.use(cors());
 app.use(express.json());
 
+// Логирование запросов
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`);
+  next();
+});
+
 // Health check
 app.get('/health', (req, res) => res.send('OK'));
 
@@ -60,7 +66,9 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-// --- API маршруты ---
+// ========== API маршруты ==========
+
+// Регистрация (основной)
 app.post('/api/register', (req, res) => {
   const { name, email, password, city } = req.body;
   if (!name || !email || !password || !city) {
@@ -84,6 +92,7 @@ app.post('/api/register', (req, res) => {
   });
 });
 
+// Логин (основной)
 app.post('/api/login', (req, res) => {
   const { email, password } = req.body;
   db.get('SELECT * FROM users WHERE email = ?', [email], (err, user) => {
@@ -100,10 +109,53 @@ app.post('/api/login', (req, res) => {
   });
 });
 
+// Алиасы для фронтенда (чтобы работали /api/auth/...)
+app.post('/api/auth/register', (req, res) => {
+  // Просто вызываем основной обработчик регистрации
+  const { name, email, password, city } = req.body;
+  if (!name || !email || !password || !city) {
+    return res.status(400).json({ error: 'Все поля обязательны' });
+  }
+  bcrypt.hash(password, 10, (err, hashed) => {
+    if (err) return res.status(500).json({ error: err.message });
+    db.run(
+      'INSERT INTO users (name, email, password, city, role) VALUES (?, ?, ?, ?, ?)',
+      [name, email, hashed, city, 'candidate'],
+      function(err) {
+        if (err) {
+          if (err.code === 'SQLITE_CONSTRAINT') {
+            return res.status(400).json({ error: 'Email уже существует' });
+          }
+          return res.status(500).json({ error: err.message });
+        }
+        res.json({ success: true });
+      }
+    );
+  });
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const { email, password } = req.body;
+  db.get('SELECT * FROM users WHERE email = ?', [email], (err, user) => {
+    if (err || !user) {
+      return res.status(401).json({ error: 'Неверные учётные данные' });
+    }
+    bcrypt.compare(password, user.password, (err, match) => {
+      if (err || !match) {
+        return res.status(401).json({ error: 'Неверные учётные данные' });
+      }
+      const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+      res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, city: user.city } });
+    });
+  });
+});
+
+// Получить текущего пользователя
 app.get('/api/me', requireAuth, (req, res) => {
   res.json(req.user);
 });
 
+// Заявки
 app.get('/api/orders', (req, res) => {
   db.all(`
     SELECT o.*, u.name as advertiser_name
@@ -166,6 +218,7 @@ app.put('/api/orders/:id/status', requireAuth, (req, res) => {
   });
 });
 
+// Админ: список пользователей
 app.get('/api/admin/users', requireAuth, requireAdmin, (req, res) => {
   db.all('SELECT id, name, email, role FROM users', [], (err, users) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -173,6 +226,7 @@ app.get('/api/admin/users', requireAuth, requireAdmin, (req, res) => {
   });
 });
 
+// Админ: смена роли
 app.put('/api/admin/users/role', requireAuth, requireAdmin, (req, res) => {
   const { userId, role } = req.body;
   if (!userId || !role) return res.status(400).json({ error: 'userId и role обязательны' });
@@ -182,6 +236,7 @@ app.put('/api/admin/users/role', requireAuth, requireAdmin, (req, res) => {
   });
 });
 
+// Смена пароля
 app.put('/api/user/change-password', requireAuth, (req, res) => {
   const { oldPassword, newPassword } = req.body;
   if (!oldPassword || !newPassword) {
@@ -202,10 +257,10 @@ app.put('/api/user/change-password', requireAuth, (req, res) => {
   });
 });
 
-// --- Статика (после API) ---
+// ========== Статика и fallback ==========
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- Fallback для SPA: отдаём index.html на все GET-запросы, кроме API и health ---
+// Fallback: отдаём index.html на любые GET-запросы, которые не являются API и не health
 app.use((req, res, next) => {
   if (req.method === 'GET' && !req.path.startsWith('/api') && req.path !== '/health') {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -214,13 +269,12 @@ app.use((req, res, next) => {
   }
 });
 
-// --- WebSocket ---
+// ========== WebSocket ==========
 io.on('connection', (socket) => {
   console.log('Клиент подключился');
 });
 
-// --- Запуск сервера ---
+// ========== Запуск сервера ==========
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
 });
-// force redeploy
