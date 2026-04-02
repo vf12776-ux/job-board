@@ -7,26 +7,27 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      includeAssets: ['favicon.ico', 'robots.txt', 'apple-touch-icon.png'],
       manifest: {
         name: 'Доска заявок',
         short_name: 'Заявки',
         start_url: '/',
         display: 'standalone',
-        theme_color: '#ffffff',
+        theme_color: '#1976d2',
         background_color: '#ffffff',
-        icons: [
-          {
-            src: '/icons/icon-192x192.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: '/icons/icon-512x512.png',
-            sizes: '512x512',
-            type: 'image/png'
-          }
-        ]
-      }
-    })
-  ]
+      },
+      workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
+      },
+    }),
+  ],
+  server: {
+    proxy: {
+      '/api': 'http://localhost:10000',
+    },
+  },
+  build: {
+    outDir: '../backend/public',
+  },
 });
